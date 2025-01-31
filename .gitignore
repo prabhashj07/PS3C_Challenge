@@ -171,11 +171,3 @@ lightning_logs
 wandb
 outputs
 
-# Ignore all files in the 'data' directory
-data/*
-
-# Or ignore specific file types like .csv, .json, etc.
-*.csv
-*.json
-*.h5
-*.zip

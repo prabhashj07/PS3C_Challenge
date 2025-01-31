@@ -9,7 +9,7 @@ from PIL import Image
 from collections import Counter
 import random
 
-from utils import save_images_from_dataloader
+from src.utils import save_images_from_dataloader
 
 # Get the number of CPU cores available
 num_workers = os.cpu_count()
@@ -133,8 +133,6 @@ def count_classes(dataset):
     return Counter(labels)
 
 # Function to visualize and save test images 
-import os
-
 def visualize_and_save_images(train_loader, val_loader, test_loader, train_dataset, val_dataset, test_dataset, num_images=4, save_dir='../artifacts/saved_images'):
     # Create the directory to save the images
     if not os.path.exists(save_dir):
@@ -175,7 +173,7 @@ def visualize_and_save_images(train_loader, val_loader, test_loader, train_datas
         plt.title(f"Label: {idx_to_class_val[labels[i].item()]}")
         plt.axis('off')
         save_path = os.path.join(save_dir, f'val_image_{i+1}.png')
-        plt.savefig(save_path)  # Save image
+        plt.savefig(save_path)  
         plt.close()  # Close the plot to free memory
 
     # Visualize and save test images
@@ -194,7 +192,7 @@ def visualize_and_save_images(train_loader, val_loader, test_loader, train_datas
         plt.axis('off')
         save_path = os.path.join(save_dir, f'test_image_{i+1}.png')
         plt.savefig(save_path)  
-        plt.close()  # free memory
+        plt.close() 
 
     print(f"Images have been saved to: {save_dir}")
 
@@ -235,7 +233,7 @@ if __name__ == "__main__":
     if not os.path.exists(test_csv):
         print(f"Error: Test CSV file not found at {test_csv}")
 
-    # Proceed to create dataloaders (ensure this function handles paths properly)
+    # Proceed to create dataloaders 
     train_loader, val_loader, test_loader, train_dataset, val_dataset, test_dataset = create_dataloaders(train_csv, test_csv, root_dir)
 
     # Verification

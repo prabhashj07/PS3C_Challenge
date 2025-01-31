@@ -1,193 +1,170 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torchvision import transforms  
+from torchvision import transforms
 import argparse
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 import datetime
 import os
 import numpy as np
 
-from src.models.factory import ModelFactory  
-from src.dataset import create_dataloaders, LabeledDataset, transform 
+from src.utils import save_images_from_dataloader
+from src.models.factory import ModelFactory
+from src.dataset import create_dataloaders
 from src.early_stopping import EarlyStopping
-from src.utils import calculate_sensitivity_specivity
 
-# Function to get current timestamp in a desired format
+# Get the current timestamp in a readable format
 def get_timestamp():
     return datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-# Set random seed for reproducibility
+# Set the seed for reproducibility in training
 def set_seed(seed: int):
     torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)  # For GPU support
+    torch.cuda.manual_seed_all(seed)
     np.random.seed(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-# Function to parse command line arguments
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a classification model.")
-    parser.add_argument("--model_name", type=str, default='resnet50', help="Name of the model.")
-    parser.add_argument("--batch_size", type=int, default=32, help="Batch size for training.")
-    parser.add_argument("--epochs", type=int, default=100, help="Number of training epochs.")
+    parser.add_argument("--model_name", type=str, default='resnet50', help="Model name.")
+    parser.add_argument("--batch_size", type=int, default=32, help="Batch size.")
+    parser.add_argument("--epochs", type=int, default=100, help="Number of epochs.")
     parser.add_argument("--lr", type=float, default=2e-4, help="Learning rate.")
-    parser.add_argument("--use_scheduler", action='store_true', help="Use learning rate scheduler.")
-    parser.add_argument("--save_dir", type=str, default='../artifacts', help="Directory to save logs and models.")
-    
+    parser.add_argument("--use_scheduler", action='store_true', help="Use LR scheduler.")
+    parser.add_argument("--save_dir", type=str, default='../artifacts', help="Save directory.")
     return parser.parse_args()
 
-# Function to initialize directories for saving outputs
-def create_output_dirs(save_dir):
-    dirs = ['checkpoints', 'logs', 'visualizations', 'metrics']
-    for dir_name in dirs:
-        dir_path = os.path.join(save_dir, dir_name)
-        if not os.path.exists(dir_path):
-            os.makedirs(dir_path)
+def ensure_dir(path):
+    os.makedirs(path, exist_ok=True)
 
-# Function to log training metrics (accuracy, loss, etc.)
-def log_metrics(log_file, epoch, train_loss, val_loss, train_acc, val_acc):
+def log_metrics(log_file, data):
     with open(log_file, 'a') as f:
-        f.write(f"{epoch}, {train_loss}, {val_loss}, {train_acc}, {val_acc}\n")
+        f.write(", ".join(map(str, data)) + "\n")
 
-# Function to save model checkpoints
-def save_checkpoint(model, optimizer, epoch, loss, save_dir, filename="checkpoint.pth"):
-    checkpoint_path = os.path.join(save_dir, "checkpoints", filename)
+def save_checkpoint(model, optimizer, epoch, loss, save_dir):
+    ensure_dir(save_dir)
     torch.save({
         'epoch': epoch,
         'model_state_dict': model.state_dict(),
         'optimizer_state_dict': optimizer.state_dict(),
         'loss': loss,
-    }, checkpoint_path)
+    }, os.path.join(save_dir, "checkpoint.pth"))
 
-# Function to visualize and save metrics or images during training
-def save_visualizations(images, labels, save_dir, epoch, prefix="train"):
-    # Save example images during training or validation
-    visualization_dir = os.path.join(save_dir, 'visualizations')
-    os.makedirs(visualization_dir, exist_ok=True)
-    for i, img in enumerate(images[:5]):  
-        img_path = os.path.join(visualization_dir, f"{prefix}_epoch{epoch}_img{i+1}.png")
-        img = transforms.ToPILImage()(img.cpu())  
-        img.save(img_path)
-
-# Add this function to ensure the CSV exists before loading
-def check_file_exists(file_path):
-    if not os.path.isfile(file_path):
-        raise FileNotFoundError(f"File not found: {file_path}")
-    return file_path
-
-# Main training loop
+# Main function
+# Main function
 def main():
-    # Parse arguments
+    # Parse command-line arguments
     args = parse_args()
-    set_seed(42)  # Set a fixed seed for reproducibility
+    set_seed(42)
     
-    # Create output directories for saving results
-    create_output_dirs(args.save_dir)
-    
-    # Set device (CUDA if available, else CPU)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-    image_dir = 'data'
-
-    data_dir = os.path.join(os.path.dirname(__file__), 'data')  
-    train_csv = os.path.join(data_dir, 'isbi2025-ps3c-train-dataset.csv')
-    test_csv = os.path.join(data_dir, 'isbi2025-ps3c-test-dataset.csv')
+    # Update the save directory to the new location
+    artifacts_dir = './artifacts'  # Assuming artifacts folder is at the root of the project
+    ensure_dir(artifacts_dir)
+    ensure_dir(os.path.join(artifacts_dir, 'checkpoints'))
+    ensure_dir(os.path.join(artifacts_dir, 'logs'))
     
-    # Ensure the CSV files exist before proceeding
-    check_file_exists(train_csv)
-    check_file_exists(test_csv)
-    
-    # Initialize data loaders
+    # Create data loaders
     train_loader, val_loader, test_loader, train_dataset, val_dataset, test_dataset = create_dataloaders(
-        train_csv, test_csv, image_dir, batch_size=args.batch_size
+        'data/isbi2025-ps3c-train-dataset.csv', 
+        'data/isbi2025-ps3c-test-dataset.csv', 
+        'data', 
+        args.batch_size
     )
     
-    # Initialize model
-    model_factory = ModelFactory(args.model_name, num_classes=3)  
-    model = model_factory.get_model()
-    model.to(device)  
-    
-    # Loss and optimizer
+    model = ModelFactory(args.model_name, num_classes=3).get_model().to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
-    
-    # Set up learning rate scheduler if specified
-    scheduler = None
-    if args.use_scheduler:
-        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.1)
-    
-    # Early stopping setup
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.1) if args.use_scheduler else None
     early_stopping = EarlyStopping(patience=10, verbose=True)
-
-    # Initialize logging
-    log_file = os.path.join(args.save_dir, 'logs', 'training_log.csv')
+    
+    log_file = os.path.join(artifacts_dir, 'logs', 'training_log.csv')
     with open(log_file, 'w') as f:
-        f.write("Epoch, Train_Loss, Val_Loss, Train_Accuracy, Val_Accuracy\n")
+        f.write("Epoch, Train_Loss, Val_Loss, Train_Acc, Val_Acc, Train_Precision, Val_Precision, Train_Recall, Val_Recall, Train_F1, Val_F1\n")
     
     # Training loop
     for epoch in range(args.epochs):
         model.train()
-        train_loss = 0.0
-        train_correct = 0
-        train_total = 0
+        train_loss, train_correct, train_preds, train_targets = 0, 0, [], []
+        
+        print(f"Epoch {epoch + 1}/{args.epochs} - Training")
+        # Initialize label counters
+        train_label_counts = np.zeros(3, dtype=int)  
         
         for images, labels in train_loader:
-            images, labels = images.to(device), labels.to(device) 
+            images, labels = images.to(device), labels.to(device)
             optimizer.zero_grad()
-            
             outputs = model(images)
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
             
-            # Calculate training accuracy
-            _, predicted = torch.max(outputs.data, 1)
-            train_total += labels.size(0)
+            _, predicted = torch.max(outputs, 1)
             train_correct += (predicted == labels).sum().item()
-            
+            train_preds.extend(predicted.cpu().numpy())
+            train_targets.extend(labels.cpu().numpy())
             train_loss += loss.item()
+
+            # Count the labels
+            for label in labels.cpu().numpy():
+                train_label_counts[label] += 1
         
-        # Validation step
+        train_acc = 100 * train_correct / len(train_dataset)
+        train_precision = precision_score(train_targets, train_preds, average='macro')
+        train_recall = recall_score(train_targets, train_preds, average='macro')
+        train_f1 = f1_score(train_targets, train_preds, average='macro')
+        
+        print(f"Train Label Counts: {train_label_counts}")
+        
+        # Validation phase
         model.eval()
-        val_loss = 0.0
-        val_correct = 0
-        val_total = 0
+        val_loss, val_correct, val_preds, val_targets = 0, 0, [], []
+        
+        print(f"Epoch {epoch + 1}/{args.epochs} - Validation")
+        # Initialize label counters for validation
+        val_label_counts = np.zeros(3, dtype=int)  
+        
         with torch.no_grad():
             for images, labels in val_loader:
-                images, labels = images.to(device), labels.to(device) 
-                
+                images, labels = images.to(device), labels.to(device)
                 outputs = model(images)
                 loss = criterion(outputs, labels)
                 
-                _, predicted = torch.max(outputs.data, 1)
-                val_total += labels.size(0)
+                _, predicted = torch.max(outputs, 1)
                 val_correct += (predicted == labels).sum().item()
-                
+                val_preds.extend(predicted.cpu().numpy())
+                val_targets.extend(labels.cpu().numpy())
                 val_loss += loss.item()
 
-        # Compute metrics
-        train_acc = 100 * train_correct / train_total
-        val_acc = 100 * val_correct / val_total
+                # Count the labels
+                for label in labels.cpu().numpy():
+                    val_label_counts[label] += 1
         
-        # Log the metrics to file
-        log_metrics(log_file, epoch, train_loss / len(train_loader), val_loss / len(val_loader), train_acc, val_acc)
+        val_acc = 100 * val_correct / len(val_dataset)
+        val_precision = precision_score(val_targets, val_preds, average='macro')
+        val_recall = recall_score(val_targets, val_preds, average='macro')
+        val_f1 = f1_score(val_targets, val_preds, average='macro')
         
-        # Save visualizations and model checkpoints
-        save_visualizations(images, labels, args.save_dir, epoch)
-        save_checkpoint(model, optimizer, epoch, train_loss / len(train_loader), args.save_dir)
+        print(f"Val Label Counts: {val_label_counts}")
         
-        # Check early stopping criteria
-        early_stopping(val_loss / len(val_loader), model)
-        if early_stopping.early_stop:
-            print("Early stopping triggered!")
-            break
+        log_metrics(log_file, [epoch, train_loss / len(train_loader), val_loss / len(val_loader),
+                                train_acc, val_acc, train_precision, val_precision, train_recall, val_recall, train_f1, val_f1])
         
-        # Learning rate scheduling
+        print(f"Epoch {epoch + 1}/{args.epochs} - Train Loss: {train_loss / len(train_loader):.4f}, Val Loss: {val_loss / len(val_loader):.4f}")
+        print(f"Train Accuracy: {train_acc:.2f}, Val Accuracy: {val_acc:.2f}")
+        print(f"Train Precision: {train_precision:.2f}, Val Precision: {val_precision:.2f}")
+        print(f"Train Recall: {train_recall:.2f}, Val Recall: {val_recall:.2f}")
+        print(f"Train F1: {train_f1:.2f}, Val F1: {val_f1:.2f}")
+        
+        save_checkpoint(model, optimizer, epoch, val_loss, os.path.join(artifacts_dir, 'checkpoints'))
         if scheduler:
             scheduler.step()
-
-    print(f"Training completed. Checkpoints and logs saved to {args.save_dir}")
+        
+        early_stopping(val_loss, model)
+        if early_stopping.early_stop:
+            print("Early stopping triggered.")
+            break
 
 if __name__ == "__main__":
     main()

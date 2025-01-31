@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torchvision import transforms
+import torch.nn.functional as F
 import argparse
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 import datetime
@@ -12,6 +13,35 @@ from src.utils import save_images_from_dataloader
 from src.models.factory import ModelFactory
 from src.dataset import create_dataloaders
 from src.early_stopping import EarlyStopping
+
+class FocalLoss(nn.Module):
+    def __init__(self, gamma=2, alpha=None, num_classes=3, reduction='mean'):
+        super(FocalLoss, self).__init__()
+        self.gamma = gamma
+        self.alpha = alpha
+        self.num_classes = num_classes
+        self.reduction = reduction
+
+    def forward(self, inputs, targets):
+        # Apply softmax to the inputs
+        inputs = F.softmax(inputs, dim=1)
+        
+        # Get the probability of the correct class for each target
+        targets = F.one_hot(targets, self.num_classes).float()
+        
+        # Calculate cross entropy
+        cross_entropy = -targets * torch.log(inputs + 1e-8)
+        
+        # Calculate focal loss
+        loss = self.alpha * (1 - inputs) ** self.gamma * cross_entropy
+        
+        # Reduce loss according to the specified reduction method
+        if self.reduction == 'mean':
+            return loss.mean()
+        elif self.reduction == 'sum':
+            return loss.sum()
+        else:
+            return loss
 
 # Get the current timestamp in a readable format
 def get_timestamp():
@@ -74,7 +104,17 @@ def main():
     )
     
     model = ModelFactory(args.model_name, num_classes=3).get_model().to(device)
-    criterion = nn.CrossEntropyLoss()
+
+    # Define your label counts and calculate alpha values
+    label_counts = torch.tensor([40265, 1894, 23146], dtype=torch.float32)
+    total_samples = label_counts.sum()
+    alpha_values = total_samples / (3 * label_counts) 
+    alpha_normalized = alpha_values / alpha_values.sum()  
+    alpha_normalized = alpha_normalized.to(device)
+
+    # Initialize Focal Loss criterion
+    criterion = FocalLoss(gamma=2, alpha=alpha_normalized, num_classes=3, reduction='mean')
+
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.1) if args.use_scheduler else None
     early_stopping = EarlyStopping(patience=10, verbose=True)

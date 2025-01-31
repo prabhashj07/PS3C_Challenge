@@ -1,16 +1,13 @@
 import os
-from torch.utils.data import DataLoader, Dataset, Subset
-from torchvision import datasets, transforms
+from torch.utils.data import DataLoader, Dataset, random_split
+from torchvision import transforms
 import numpy as np
+import pandas as pd
 from sklearn.model_selection import train_test_split
-from .utils import print_label_distribution
+from PIL import Image
 
 # Get the number of CPU cores available
 num_workers = os.cpu_count()
-
-# Define the class names 
-class_names = ['basophil', 'eosinophil', 'erythroblast', 'ig', 'lymphocyte', 'monocyte', 'neutrophil', 'platelet']
-
 
 # Transformation pipeline
 transform = {
@@ -34,70 +31,59 @@ transform = {
     ])
 }
 
-# Define FilteredDataset class
-class FilteredDataset(Dataset):
-    def __init__(self, dataset, class_names):
-        self.dataset = dataset
-        self.class_to_idx = {cls: idx for idx, cls in enumerate(class_names)}
-        self.filtered_indices = []
-        self.targets = []
+# Define LabeledDataset class
+class LabeledDataset(Dataset):
+    def __init__(self, csv_file, root_dir, transform=None):
+        self.data = pd.read_csv(csv_file)
+        self.root_dir = root_dir
+        self.transform = transform
+        self.class_to_idx = {label: idx for idx, label in enumerate(self.data['label'].unique())}
         
-        print("Dataset classes before filtering:", dataset.classes)  
-
-        # Filter and remap labels
-        for idx, (_, label) in enumerate(dataset.samples):
-            class_name = dataset.classes[label]
-            if class_name in class_names:
-                self.filtered_indices.append(idx)
-                self.targets.append(self.class_to_idx[class_name])
-
-        print(f"Number of samples after filtering: {len(self.filtered_indices)}")  
-
     def __len__(self):
-        return len(self.filtered_indices)
+        return len(self.data)
     
     def __getitem__(self, idx):
-        original_idx = self.filtered_indices[idx]
-        image, _ = self.dataset[original_idx]
-        label = self.targets[idx]
+        img_name = os.path.join(self.root_dir, self.data.iloc[idx, 0])
+        image = Image.open(img_name).convert('RGB')
+        label = self.data.iloc[idx, 1]
+        
+        if self.transform:
+            image = self.transform(image)
+        
         return image, label
 
+# Class for unlabeled test data
+class UnlabeledDataset(Dataset):
+    def __init__(self, csv_file, root_dir, transform=None):
+        self.data = pd.read_csv(csv_file)
+        self.root_dir = root_dir
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        img_name = os.path.join(self.root_dir, self.data.iloc[idx, 0])
+        image = Image.open(img_name).convert('RGB')
+        
+        if self.transform:
+            image = self.transform(image)
+        
+        return image
+
 # Function to create dataset and dataloaders
-def create_dataloaders(dataset_dir, batch_size=16, num_workers=4):
-    if not os.path.exists(dataset_dir):
-        raise FileNotFoundError(f"Dataset directory '{dataset_dir}' not found.")
+def create_dataloaders(train_csv, test_csv, image_dir, batch_size=16, num_workers=4):
+    # Load full dataset
+    full_dataset = LabeledDataset(train_csv, image_dir, transform)
 
-    # Load dataset
-    full_dataset = datasets.ImageFolder(dataset_dir, transform=transform['train'])
-
-    # Filter dataset
-    filtered_dataset = FilteredDataset(full_dataset, class_names)
-
-    # Perform stratified split
-    indices = np.arange(len(filtered_dataset))
-    targets = np.array(filtered_dataset.targets)
-
-    # First split: train and temp (val + test)
-    train_idx, temp_idx = train_test_split(
-        indices, 
-        test_size=0.2,  # 40% for val+test
-        stratify=targets,
-        random_state=42
-    )
-
-    # Second split: val and test from temp
-    val_idx, test_idx = train_test_split(
-        temp_idx,
-        test_size=0.5,  # Split temp into equal val and test
-        stratify=targets[temp_idx],
-        random_state=42
-    )
-
-    # Create subsets
-    train_dataset = Subset(filtered_dataset, train_idx)
-    val_dataset = Subset(filtered_dataset, val_idx)
-    test_dataset = Subset(filtered_dataset, test_idx)
-
+    # Split into train and validation
+    train_size = int(0.8 * len(full_dataset))
+    val_size = len(full_dataset) - train_size
+    train_dataset, val_dataset = random_split(full_dataset, [train_size, val_size])
+    
+    # Load test dataset
+    test_dataset = UnlabeledDataset(test_csv, image_dir, transform)
+    
     # Create DataLoaders
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
@@ -107,8 +93,10 @@ def create_dataloaders(dataset_dir, batch_size=16, num_workers=4):
 
 # Main block
 if __name__ == "__main__":
-    dataset_dir = '../data/PBC_dataset_normal_DIB_224/PBC_dataset_normal_DIB_224'
-    train_loader, val_loader, test_loader, train_dataset, val_dataset, test_dataset = create_dataloaders(dataset_dir)
+    root_dir = '../data/'  
+    train_csv = os.path.abspath('../data/isbi2025-ps3c-train-dataset.csv')
+    test_csv = os.path.abspath('../data/isbi2025-ps3c-test-dataset.csv')
+    train_loader, val_loader, test_loader, train_dataset, val_dataset, test_dataset = create_dataloaders(train_csv, test_csv, root_dir)
 
     # Verification
     print("\nDataset Splits:")
@@ -116,8 +104,3 @@ if __name__ == "__main__":
     print(f"Train size: {len(train_dataset)}")
     print(f"Val size: {len(val_dataset)}")
     print(f"Test size: {len(test_dataset)}")
-
-    # Check label distribution
-    print_label_distribution(train_loader, class_names, "Train")
-    print_label_distribution(val_loader, class_names, "Validation")
-    print_label_distribution(test_loader, class_names, "Test")

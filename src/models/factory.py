@@ -83,6 +83,9 @@ class Model(nn.Module):
             return self.model.fc.in_features
         elif family == "vit":
             return self.model.heads.head.in_features
+        else:
+            raise ValueError(f"Unknown model family: {family}")
+
 
     def _create_classifier(self, in_features: int, num_classes: int) -> nn.Sequential:
         """Create the classifier module."""
@@ -138,4 +141,4 @@ class ModelFactory:
 
 
 if __name__ == "__main__":
-    model = ModelFactory("resnet50", 5)()
+    model = ModelFactory("resnet50", 3)()

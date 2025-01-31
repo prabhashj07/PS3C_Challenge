@@ -101,8 +101,6 @@ class LabeledDataset(Dataset):
 
         return image, self.class_to_idx[label]
 
-
-
 # Class for unlabeled test data
 class UnlabeledDataset(Dataset):
     def __init__(self, csv_file, root_dir, transform=None):
@@ -199,8 +197,6 @@ def visualize_and_save_images(train_loader, val_loader, test_loader, train_datas
         plt.close()  # free memory
 
     print(f"Images have been saved to: {save_dir}")
-
-
 
 # Function to create dataset and dataloaders
 def create_dataloaders(train_csv, test_csv, image_dir, batch_size=16, num_workers=4):

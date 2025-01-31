@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix
 
-def save_images_from_dataloader(dataloader, dataset, save_dir, num_images=10):
+def save_images_from_dataloader(dataloader, dataset, save_dir, num_images=3):
     """
     Save images from the given dataloader.
 

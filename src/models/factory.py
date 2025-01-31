@@ -1,6 +1,7 @@
 from torchvision import models
 from torch import nn
 
+# Model mappings
 model_mapping = {
     "densenet121": (
         models.densenet121,
@@ -41,9 +42,8 @@ model_mapping = {
     # Add more models as needed with their respective configurations.
 }
 
-
 class Model(nn.Module):
-    """Moodel definition."""
+    """Model definition."""
 
     def __init__(self, model_name: str, num_classes: int):
         """
@@ -55,6 +55,7 @@ class Model(nn.Module):
         """
         super(Model, self).__init__()
 
+        # Get model class and configuration
         model_class, model_config = model_mapping[model_name]
         self.model = model_class(weights=model_config["weights"])
 
@@ -62,8 +63,10 @@ class Model(nn.Module):
         for param in self.model.parameters():
             param.requires_grad = False
 
+        # Get the in_features from the model family
         in_features = self._get_in_features(model_config["family"])
 
+        # Adjust the classifier according to the model family
         if model_config["family"] == "densenet":
             self.model.classifier = self._create_classifier(in_features, num_classes)
         elif model_config["family"] == "resnet":
@@ -86,7 +89,6 @@ class Model(nn.Module):
         else:
             raise ValueError(f"Unknown model family: {family}")
 
-
     def _create_classifier(self, in_features: int, num_classes: int) -> nn.Sequential:
         """Create the classifier module."""
         return nn.Sequential(
@@ -100,45 +102,41 @@ class Model(nn.Module):
 class ModelFactory:
     """
     Factory for creating different models based on their names.
-
-    Args:
-        name (str): The name of the model factory.
-        num_classes (int): The number of output classes.
-
-    Raises:
-        ValueError: If the specified model factory is not implemented.
     """
 
-    def __init__(self, name: str, num_classes: int):
+    def __init__(self, model_name: str, num_classes: int):
         """
         Initialize ModelFactory instance.
 
         Args:
-            name (str): The name of the model.
+            model_name (str): The name of the model.
             num_classes (int): The number of output classes.
         """
-        self.name = name
+        self.model_name = model_name
         self.num_classes = num_classes
 
     def __call__(self):
         """
         Create a model instance based on the provided name.
 
-        Args:
-            model_name (str): Name of the model architecture.
-            num_classes (int): Number of output classes.
-
         Returns:
             Model: An instance of the selected model.
         """
-        if self.name not in model_mapping:
+        if self.model_name not in model_mapping:
             valid_options = ", ".join(model_mapping.keys())
             raise ValueError(
-                f"Invalid model name: '{self.name}'. Available options: {valid_options}"
+                f"Invalid model name: '{self.model_name}'. Available options: {valid_options}"
             )
 
-        return Model(self.name, self.num_classes)
+        return Model(self.model_name, self.num_classes)
+
+    def get_model(self):
+        """Returns the created model directly."""
+        return self()
 
 
 if __name__ == "__main__":
-    model = ModelFactory("resnet50", 3)()
+    model_factory = ModelFactory("resnet50", 3)
+    model = model_factory.get_model()
+
+    print(model)

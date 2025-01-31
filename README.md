@@ -56,6 +56,7 @@ Run the training script using one of the following methods:
 
 ```bash
 python train.py
+``````
 
 ## Project Structure
 

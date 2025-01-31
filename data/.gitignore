@@ -1,5 +1,6 @@
 data/*
 !data/.gitignore
+!data/*.csv
 
 __pycache__
 __MACOSX

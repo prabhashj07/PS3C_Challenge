@@ -57,6 +57,10 @@ Run the training script using one of the following methods:
 ```bash
 python train.py
 ``````
+Example command:
+```bash
+python train.py --model_name resnet50 --batch_size 32 --epochs 100 --lr 2e-4 --use_scheduler --save_dir ../artifacts --seed 42 --gamma 2 --patience 10 --num_classes 3
+```
 
 ## Project Structure
 

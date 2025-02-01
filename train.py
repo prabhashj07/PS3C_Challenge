@@ -8,6 +8,9 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 import datetime
 import os
 import numpy as np
+from torch.utils.tensorboard.writer import SummaryWriter
+import logging  
+from tqdm import tqdm
 
 from src.utils import save_images_from_dataloader
 from src.models.factory import ModelFactory
@@ -63,6 +66,10 @@ def parse_args():
     parser.add_argument("--lr", type=float, default=2e-4, help="Learning rate.")
     parser.add_argument("--use_scheduler", action='store_true', help="Use LR scheduler.")
     parser.add_argument("--save_dir", type=str, default='../artifacts', help="Save directory.")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed.")
+    parser.add_argument("--gamma", type=float, default=2, help="Focal loss gamma.")
+    parser.add_argument("--patience", type=int, default=10, help="Early stopping patience.")
+    parser.add_argument("--num_classes", type=int, default=3, help="Number of classes.")
     return parser.parse_args()
 
 def ensure_dir(path):
@@ -72,28 +79,58 @@ def log_metrics(log_file, data):
     with open(log_file, 'a') as f:
         f.write(", ".join(map(str, data)) + "\n")
 
-def save_checkpoint(model, optimizer, epoch, loss, save_dir):
+def save_checkpoint(model, optimizer, epoch, loss, save_dir, is_best=False):
     ensure_dir(save_dir)
-    torch.save({
+    checkpoint = {
         'epoch': epoch,
         'model_state_dict': model.state_dict(),
         'optimizer_state_dict': optimizer.state_dict(),
         'loss': loss,
-    }, os.path.join(save_dir, "checkpoint.pth"))
+    }
+    torch.save(checkpoint, os.path.join(save_dir, f"checkpoint_{get_timestamp()}.pth"))
+    if is_best:
+        torch.save(checkpoint, os.path.join(save_dir, "best_checkpoint.pth"))
 
-# Main function
-# Main function
+def setup_logging(log_dir):
+    os.makedirs(log_dir, exist_ok=True)
+    timestamp = get_timestamp().replace(" ", "_").replace(":", "-")
+    log_file = os.path.join(log_dir, f'training_log_{timestamp}.txt')
+    
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(message)s',
+        handlers=[
+            logging.FileHandler(log_file),
+            logging.StreamHandler()
+        ]
+    )
+    return log_file
+
+def log_args(log_file, args):
+    with open(log_file, 'a') as f:
+        f.write("Training Arguments:\n")
+        for arg in vars(args):
+            f.write(f"{arg}: {getattr(args, arg)}\n")
+        f.write("\n")
+
+# Main Function
 def main():
     # Parse command-line arguments
     args = parse_args()
-    set_seed(42)
+    set_seed(args.seed)
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    # Update the save directory to the new location
-    artifacts_dir = './artifacts'  # Assuming artifacts folder is at the root of the project
+    artifacts_dir = './artifacts'
     ensure_dir(artifacts_dir)
     ensure_dir(os.path.join(artifacts_dir, 'checkpoints'))
-    ensure_dir(os.path.join(artifacts_dir, 'logs'))
+    
+    # Setup logging
+    log_file = setup_logging(os.path.join(artifacts_dir, 'logs'))
+    logging.info(f"Training started with model: {args.model_name}")
+
+    # Log the arguments
+    log_args(log_file, args)
+    logging.info(f"Training started with model: {args.model_name}")
     
     # Create data loaders
     train_loader, val_loader, test_loader, train_dataset, val_dataset, test_dataset = create_dataloaders(
@@ -103,36 +140,29 @@ def main():
         args.batch_size
     )
     
-    model = ModelFactory(args.model_name, num_classes=3).get_model().to(device)
-
-    # Define your label counts and calculate alpha values
+    model = ModelFactory(args.model_name, num_classes=args.num_classes).get_model().to(device)
+    
+    # Initialize Focal Loss
     label_counts = torch.tensor([40265, 1894, 23146], dtype=torch.float32)
-    total_samples = label_counts.sum()
-    alpha_values = total_samples / (3 * label_counts) 
-    alpha_normalized = alpha_values / alpha_values.sum()  
+    alpha_values = label_counts.sum() / (args.num_classes * label_counts)
+    alpha_normalized = alpha_values / alpha_values.sum()
     alpha_normalized = alpha_normalized.to(device)
-
-    # Initialize Focal Loss criterion
-    criterion = FocalLoss(gamma=2, alpha=alpha_normalized, num_classes=3, reduction='mean')
-
+    criterion = FocalLoss(gamma=args.gamma, alpha=alpha_normalized, reduction='mean')
+    
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.1) if args.use_scheduler else None
-    early_stopping = EarlyStopping(patience=10, verbose=True)
-    
-    log_file = os.path.join(artifacts_dir, 'logs', 'training_log.csv')
-    with open(log_file, 'w') as f:
-        f.write("Epoch, Train_Loss, Val_Loss, Train_Acc, Val_Acc, Train_Precision, Val_Precision, Train_Recall, Val_Recall, Train_F1, Val_F1\n")
+    early_stopping = EarlyStopping(patience=args.patience, verbose=True)
     
     # Training loop
+    best_val_loss = float('inf')
     for epoch in range(args.epochs):
         model.train()
         train_loss, train_correct, train_preds, train_targets = 0, 0, [], []
+        train_label_counts = np.zeros(args.num_classes, dtype=int)
         
-        print(f"Epoch {epoch + 1}/{args.epochs} - Training")
-        # Initialize label counters
-        train_label_counts = np.zeros(3, dtype=int)  
-        
-        for images, labels in train_loader:
+        # Wrap train_loader with tqdm for progress bar
+        train_progress = tqdm(train_loader, desc=f"Epoch {epoch + 1}/{args.epochs} [Train]", leave=False)
+        for images, labels in train_progress:
             images, labels = images.to(device), labels.to(device)
             optimizer.zero_grad()
             outputs = model(images)
@@ -145,28 +175,26 @@ def main():
             train_preds.extend(predicted.cpu().numpy())
             train_targets.extend(labels.cpu().numpy())
             train_loss += loss.item()
-
-            # Count the labels
             for label in labels.cpu().numpy():
                 train_label_counts[label] += 1
+            
+            # Update progress bar with current loss
+            train_progress.set_postfix({"Loss": loss.item()})
         
         train_acc = 100 * train_correct / len(train_dataset)
         train_precision = precision_score(train_targets, train_preds, average='macro')
         train_recall = recall_score(train_targets, train_preds, average='macro')
         train_f1 = f1_score(train_targets, train_preds, average='macro')
         
-        print(f"Train Label Counts: {train_label_counts}")
-        
         # Validation phase
         model.eval()
         val_loss, val_correct, val_preds, val_targets = 0, 0, [], []
+        val_label_counts = np.zeros(args.num_classes, dtype=int)
         
-        print(f"Epoch {epoch + 1}/{args.epochs} - Validation")
-        # Initialize label counters for validation
-        val_label_counts = np.zeros(3, dtype=int)  
-        
+        # Wrap val_loader with tqdm for progress bar
+        val_progress = tqdm(val_loader, desc=f"Epoch {epoch + 1}/{args.epochs} [Val]", leave=False)
         with torch.no_grad():
-            for images, labels in val_loader:
+            for images, labels in val_progress:
                 images, labels = images.to(device), labels.to(device)
                 outputs = model(images)
                 loss = criterion(outputs, labels)
@@ -176,34 +204,37 @@ def main():
                 val_preds.extend(predicted.cpu().numpy())
                 val_targets.extend(labels.cpu().numpy())
                 val_loss += loss.item()
-
-                # Count the labels
                 for label in labels.cpu().numpy():
                     val_label_counts[label] += 1
+                
+                # Update progress bar with current loss
+                val_progress.set_postfix({"Loss": loss.item()})
         
         val_acc = 100 * val_correct / len(val_dataset)
         val_precision = precision_score(val_targets, val_preds, average='macro')
         val_recall = recall_score(val_targets, val_preds, average='macro')
         val_f1 = f1_score(val_targets, val_preds, average='macro')
         
-        print(f"Val Label Counts: {val_label_counts}")
-        
+        # Log metrics
         log_metrics(log_file, [epoch, train_loss / len(train_loader), val_loss / len(val_loader),
-                                train_acc, val_acc, train_precision, val_precision, train_recall, val_recall, train_f1, val_f1])
+                              train_acc, val_acc, train_precision, val_precision, train_recall, val_recall, train_f1, val_f1])
         
-        print(f"Epoch {epoch + 1}/{args.epochs} - Train Loss: {train_loss / len(train_loader):.4f}, Val Loss: {val_loss / len(val_loader):.4f}")
-        print(f"Train Accuracy: {train_acc:.2f}, Val Accuracy: {val_acc:.2f}")
-        print(f"Train Precision: {train_precision:.2f}, Val Precision: {val_precision:.2f}")
-        print(f"Train Recall: {train_recall:.2f}, Val Recall: {val_recall:.2f}")
-        print(f"Train F1: {train_f1:.2f}, Val F1: {val_f1:.2f}")
+        # Log to console and file using logging
+        logging.info(f"Epoch {epoch + 1}/{args.epochs} - Train Loss: {train_loss / len(train_loader):.4f}, Val Loss: {val_loss / len(val_loader):.4f}")
+        logging.info(f"Train Accuracy: {train_acc:.2f}, Val Accuracy: {val_acc:.2f}")
+        logging.info(f"Train Precision: {train_precision:.2f}, Val Precision: {val_precision:.2f}")
+        logging.info(f"Train Recall: {train_recall:.2f}, Val Recall: {val_recall:.2f}")
+        logging.info(f"Train F1: {train_f1:.2f}, Val F1: {val_f1:.2f}")
         
-        save_checkpoint(model, optimizer, epoch, val_loss, os.path.join(artifacts_dir, 'checkpoints'))
-        if scheduler:
-            scheduler.step()
+        # Save checkpoint
+        save_checkpoint(model, optimizer, epoch, val_loss, os.path.join(artifacts_dir, 'checkpoints'), is_best=(val_loss < best_val_loss))
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
         
+        # Early stopping
         early_stopping(val_loss, model)
         if early_stopping.early_stop:
-            print("Early stopping triggered.")
+            logging.info("Early stopping triggered.")
             break
 
 if __name__ == "__main__":

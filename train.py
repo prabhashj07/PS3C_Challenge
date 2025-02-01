@@ -60,6 +60,9 @@ def set_seed(seed: int):
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a classification model.")
+    parser.add_argument("--train_csv", type=str, default='data/isbi2025-ps3c-train-dataset.csv', help='Path to the training CSV file.')
+    parser.add_argument("--test_csv", type=str, default='data/isbi2025-ps3c-test-dataset.csv', help="Path to the test CSV file.")
+    parser.add_argument("--data_dir", type=str, default='data', help="Directory containing the dataset images.")
     parser.add_argument("--model_name", type=str, default='resnet50', help="Model name.")
     parser.add_argument("--batch_size", type=int, default=32, help="Batch size.")
     parser.add_argument("--epochs", type=int, default=100, help="Number of epochs.")
@@ -134,9 +137,9 @@ def main():
     
     # Create data loaders
     train_loader, val_loader, test_loader, train_dataset, val_dataset, test_dataset = create_dataloaders(
-        'data/isbi2025-ps3c-train-dataset.csv', 
-        'data/isbi2025-ps3c-test-dataset.csv', 
-        'data', 
+        args.train_csv, 
+        args.test_csv, 
+        args.data_dir, 
         args.batch_size
     )
     

@@ -38,6 +38,8 @@ def log_args(log_file, args):
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Evaluate a trained classification model.")
+    parser.add_argument("--test_csv", type=str, required=True, help="Path to the test CSV file.")
+    parser.add_argument("--data_dir", type=str, required=True, help="Directory containing the dataset images.")
     parser.add_argument("--model_name", type=str, default='resnet50', help="Model name.")
     parser.add_argument("--batch_size", type=int, default=32, help="Batch size.")
     parser.add_argument("--model_path", type=str, required=True, help="Path to the saved model checkpoint.")
@@ -70,9 +72,9 @@ def evaluate_model(model, test_loader, criterion, device):
 # Define the transformations
 transform = {
     'test': transforms.Compose([
-        transforms.Resize(224),  # Resize image to 224x224
-        transforms.ToTensor(),   # Convert image to tensor
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # Normalize based on ImageNet stats
+        transforms.Resize(224),  
+        transforms.ToTensor(),  
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  
     ])
 }
 
@@ -91,7 +93,8 @@ def main():
     # Set device and load test data
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    test_dataset = UnlabeledDataset('data/isbi2025-ps3c-test-dataset.csv', 'data', transform['test'])
+    # Use the paths from args
+    test_dataset = UnlabeledDataset(args.test_csv, args.data_dir, transform['test'])
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 
     # Load the model and checkpoint

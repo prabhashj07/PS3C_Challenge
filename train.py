@@ -143,7 +143,7 @@ def main():
     
     # Initialize Focal Loss
     label_counts = torch.tensor([40265, 1894, 23146], dtype=torch.float32)
-    alpha_values = label_counts.sum() / (args.num_classes * label_counts)
+    alpha_values = label_counts.sum() / (3 * label_counts)
     alpha_normalized = alpha_values / alpha_values.sum()
     alpha_normalized = alpha_normalized.to(device)
     criterion = FocalLoss(gamma=args.gamma, alpha=alpha_normalized, reduction='mean')

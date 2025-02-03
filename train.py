@@ -59,6 +59,7 @@ def set_seed(seed: int):
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a classification model.")
     parser.add_argument("--train_csv", type=str, default='data/isbi2025-ps3c-train-dataset.csv', help='Path to the training CSV file.')
+    parser.add_argument("--test_csv", type=str, default='data/isbi2025-ps3c-test-dataset.csv', help='Path to the testing CSV file.')
     parser.add_argument("--data_dir", type=str, default='data', help="Directory containing the dataset images.")
     parser.add_argument("--model_name", type=str, default='resnet50', help="Model name.")
     parser.add_argument("--batch_size", type=int, default=32, help="Batch size.")
@@ -156,10 +157,11 @@ def main():
     for epoch in range(args.epochs):
         model.train()
         train_loss, train_correct, train_preds, train_targets = 0, 0, [], []
-        train_label_counts = np.zeros(args.num_classes, dtype=int)
+        train_label_counts = np.zeros(3, dtype=int)
         
         # Wrap train_loader with tqdm for progress bar
-        train_progress = tqdm(train_loader, desc=f"Epoch {epoch + 1}/{args.epochs} [Train]", leave=False)
+        train_progress = tqdm(train_loader, desc=f"Epoch {epoch + 1}/{args.epochs} [Train]", 
+                       leave=False, ncols=100, dynamic_ncols=True)
         for images, labels in train_progress:
             images, labels = images.to(device), labels.to(device)
             optimizer.zero_grad()
@@ -167,6 +169,10 @@ def main():
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
+
+            # Update the learning rate schedule 
+            if scheduler:
+                scheduler.step()
             
             _, predicted = torch.max(outputs, 1)
             train_correct += (predicted == labels).sum().item()
@@ -187,10 +193,11 @@ def main():
         # Validation phase
         model.eval()
         val_loss, val_correct, val_preds, val_targets = 0, 0, [], []
-        val_label_counts = np.zeros(args.num_classes, dtype=int)
+        val_label_counts = np.zeros(3, dtype=int)
         
         # Wrap val_loader with tqdm for progress bar
-        val_progress = tqdm(val_loader, desc=f"Epoch {epoch + 1}/{args.epochs} [Val]", leave=False)
+        val_progress = tqdm(val_loader, desc=f"Epoch {epoch + 1}/{args.epochs} [Val]", 
+                     leave=False, ncols=100, dynamic_ncols=True)
         with torch.no_grad():
             for images, labels in val_progress:
                 images, labels = images.to(device), labels.to(device)

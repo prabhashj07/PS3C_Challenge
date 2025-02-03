@@ -9,8 +9,6 @@ from PIL import Image
 from collections import Counter
 import random
 
-from src.utils import save_images_from_dataloader
-
 # Get the number of CPU cores available
 num_workers = os.cpu_count()
 

@@ -125,6 +125,16 @@ def main():
     logging.info(f"Class-wise F1 Scores: {class_f1_scores}")
     logging.info(f"Average F1-Score: {avg_f1_score:.4f}")
 
+    # Print the log
+    print(f"Test Loss: {test_loss:.4f}")
+    print(f"Test Accuracy: {test_acc:.2f}%")
+    print(f"Test Precision: {test_precision:.4f}")
+    print(f"Test Recall: {test_recall:.4f}")
+    print(f"Test F1 Score: {test_f1:.4f}")
+    print(f"Class-wise F1 Scores: {class_f1_scores}")
+    print(f"Average F1-Score: {avg_f1_score:.4f}")
+
+
     print("Evaluation complete.")
 
 if __name__ == "__main__":

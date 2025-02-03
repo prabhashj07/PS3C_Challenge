@@ -112,6 +112,12 @@ class Model(nn.Module):
             return self.model.fc.in_features
         elif family == "vit":
             return self.model.heads.head.in_features
+        elif family == "alexnet":
+            return self.model.classifier[1].in_features  
+        elif family == "vgg":
+            return self.model.classifier[0].in_features  
+        elif family == "squeezenet":
+            return self.model.classifier[1].in_features  
         else:
             raise ValueError(f"Unknown model family: {family}")
 
@@ -120,7 +126,7 @@ class Model(nn.Module):
         return nn.Sequential(
             nn.Linear(in_features, in_features // 2),
             nn.ReLU(),
-            nn.Dropout(0.5),
+            nn.Dropout(0.1), # 0.5
             nn.Linear(in_features // 2, num_classes),
         )
 

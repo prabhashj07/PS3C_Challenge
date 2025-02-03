@@ -16,7 +16,7 @@ from src.dataset import create_dataloaders
 from src.early_stopping import EarlyStopping
 
 class FocalLoss(nn.Module):
-    def __init__(self, gamma=2, alpha=None, num_classes=3, reduction='mean'):
+    def __init__(self, gamma=4, alpha=None, num_classes=3, reduction='mean'):
         super(FocalLoss, self).__init__()
         self.gamma = gamma
         self.alpha = alpha
@@ -68,7 +68,7 @@ def parse_args():
     parser.add_argument("--use_scheduler", action='store_true', help="Use LR scheduler.")
     parser.add_argument("--save_dir", type=str, default='../artifacts', help="Save directory.")
     parser.add_argument("--seed", type=int, default=42, help="Random seed.")
-    parser.add_argument("--gamma", type=float, default=2, help="Focal loss gamma.")
+    parser.add_argument("--gamma", type=float, default=4, help="Focal loss gamma.")
     parser.add_argument("--patience", type=int, default=10, help="Early stopping patience.")
     return parser.parse_args()
 
@@ -143,7 +143,10 @@ def main():
     
     # Initialize Focal Loss
     label_counts = torch.tensor([40265, 1894, 23146], dtype=torch.float32)
-    alpha_values = label_counts.sum() / (3 * label_counts)
+    # alpha_values = label_counts.sum() / (3 * label_counts)
+
+    # using using inverse class frequencies
+    alpha_values = 1.0 / label_counts
     alpha_normalized = alpha_values / alpha_values.sum()
     alpha_normalized = alpha_normalized.to(device)
     criterion = FocalLoss(gamma=args.gamma, alpha=alpha_normalized, reduction='mean')
@@ -238,6 +241,15 @@ def main():
         logging.info(f"Train F1: {train_f1:.2f}, Val F1: {val_f1:.2f}")
         logging.info(f"Class-wise F1-Scores: {class_f1_report}")
         logging.info(f"Average F1-Score: {avg_f1_score:.4f}")
+
+        # Print to output the logs 
+        print(f"Epoch {epoch + 1}/{args.epochs} - Train Loss: {train_loss / len(train_loader):.4f}, Val Loss: {val_loss / len(val_loader):.4f}")
+        print(f"Train Accuracy: {train_acc:.2f}, Val Accuracy: {val_acc:.2f}")
+        print(f"Train Precision: {train_precision:.2f}, Val Precision: {val_precision:.2f}")
+        print(f"Train Recall: {train_recall:.2f}, Val Recall: {val_recall:.2f}")
+        print(f"Train F1: {train_f1:.2f}, Val F1: {val_f1:.2f}")
+        print(f"Class-wise F1-Scores: {class_f1_report}")
+        print(f"Average F1-Score: {avg_f1_score:.4f}")
         
         # Save checkpoint based on the best F1-Score
         if avg_f1_score > best_val_f1:

@@ -70,7 +70,6 @@ def parse_args():
     parser.add_argument("--seed", type=int, default=42, help="Random seed.")
     parser.add_argument("--gamma", type=float, default=2, help="Focal loss gamma.")
     parser.add_argument("--patience", type=int, default=10, help="Early stopping patience.")
-    parser.add_argument("--num_classes", type=int, default=3, help="Number of classes.")
     return parser.parse_args()
 
 def ensure_dir(path):

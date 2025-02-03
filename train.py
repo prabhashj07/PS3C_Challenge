@@ -139,7 +139,7 @@ def main():
         args.batch_size
     )
     
-    model = ModelFactory(args.model_name, num_classes=args.num_classes).get_model().to(device)
+    model = ModelFactory(args.model_name, num_classes=3).get_model().to(device)
     
     # Initialize Focal Loss
     label_counts = torch.tensor([40265, 1894, 23146], dtype=torch.float32)

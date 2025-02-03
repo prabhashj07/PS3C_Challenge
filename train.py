@@ -241,6 +241,15 @@ def main():
         logging.info(f"Train F1: {train_f1:.2f}, Val F1: {val_f1:.2f}")
         logging.info(f"Class-wise F1-Scores: {class_f1_report}")
         logging.info(f"Average F1-Score: {avg_f1_score:.4f}")
+
+        # Print to output the logs 
+        print(f"Epoch {epoch + 1}/{args.epochs} - Train Loss: {train_loss / len(train_loader):.4f}, Val Loss: {val_loss / len(val_loader):.4f}")
+        print(f"Train Accuracy: {train_acc:.2f}, Val Accuracy: {val_acc:.2f}")
+        print(f"Train Precision: {train_precision:.2f}, Val Precision: {val_precision:.2f}")
+        print(f"Train Recall: {train_recall:.2f}, Val Recall: {val_recall:.2f}")
+        print(f"Train F1: {train_f1:.2f}, Val F1: {val_f1:.2f}")
+        print(f"Class-wise F1-Scores: {class_f1_report}")
+        print(f"Average F1-Score: {avg_f1_score:.4f}")
         
         # Save checkpoint based on the best F1-Score
         if avg_f1_score > best_val_f1:

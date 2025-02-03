@@ -178,5 +178,10 @@ data/*
 !data/*.csv
 !data/.gitignore
 
-# ignore .pth files 
+# ignore files 
 *.pth
+*.pkl
+*.pt
+
+__pycache__
+__MACOSX

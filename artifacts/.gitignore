@@ -6,6 +6,7 @@
 *.pth
 *.pkl
 *.pt
+*.pth
 
 __pycache__
 __MACOSX

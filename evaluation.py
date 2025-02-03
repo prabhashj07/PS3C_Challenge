@@ -2,14 +2,14 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from torchvision import transforms
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import classification_report, precision_score, recall_score, f1_score
 import argparse
 import os
 import logging
 from datetime import datetime
 import numpy as np
 from src.models.factory import ModelFactory
-from src.dataset import create_dataloaders, UnlabeledDataset
+from src.dataset import UnlabeledDataset
 
 def get_timestamp():
     return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -68,10 +68,13 @@ def evaluate_model(model, test_loader, criterion, device):
     test_recall = recall_score(test_targets, test_preds, average='weighted')
     test_f1 = f1_score(test_targets, test_preds, average='weighted')
     
-    class_f1_scores = f1_score(test_targets, test_preds, average=None)
-    avg_f1_score = np.mean(class_f1_scores)
+    # Generate class-wise F1 score report
+    class_f1_report = classification_report(test_targets, test_preds, target_names=[f'Class {i}' for i in range(3)])
+
+    # Compute average F1 score from the classification report
+    avg_f1_score = (test_f1)
     
-    return test_loss / len(test_loader), test_acc, test_precision, test_recall, test_f1, class_f1_scores, avg_f1_score
+    return test_loss / len(test_loader), test_acc, test_precision, test_recall, test_f1, class_f1_report, avg_f1_score
 
 # Define the transformations
 transform = {

@@ -4,7 +4,7 @@ import torch.optim as optim
 from torchvision import transforms
 import torch.nn.functional as F
 import argparse
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import classification_report, precision_score, recall_score, f1_score
 import datetime
 import os
 import numpy as np
@@ -59,7 +59,6 @@ def set_seed(seed: int):
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a classification model.")
     parser.add_argument("--train_csv", type=str, default='data/isbi2025-ps3c-train-dataset.csv', help='Path to the training CSV file.')
-    parser.add_argument("--test_csv", type=str, default='data/isbi2025-ps3c-test-dataset.csv', help="Path to the test CSV file.")
     parser.add_argument("--data_dir", type=str, default='data', help="Directory containing the dataset images.")
     parser.add_argument("--model_name", type=str, default='resnet50', help="Model name.")
     parser.add_argument("--batch_size", type=int, default=32, help="Batch size.")
@@ -132,7 +131,7 @@ def main():
     log_args(log_file, args)
     
     # Create data loaders
-    train_loader, val_loader, test_loader, train_dataset, val_dataset, test_dataset = create_dataloaders(
+    train_loader, val_loader, _, train_dataset, val_dataset, _ = create_dataloaders(
         args.train_csv, 
         args.test_csv, 
         args.data_dir, 
@@ -214,9 +213,11 @@ def main():
         val_recall = recall_score(val_targets, val_preds, average='weighted')
         val_f1 = f1_score(val_targets, val_preds, average='weighted')
         
-        # Calculate class-wise F1 scores
-        class_f1_scores = f1_score(val_targets, val_preds, average=None)  
-        avg_f1_score = np.mean(class_f1_scores)
+        # Generate class-wise F1 score report
+        class_f1_report = classification_report(val_targets, val_preds, target_names=[f'Class {i}' for i in range(3)])
+
+        # Compute average F1 score from the classification report
+        avg_f1_score = (val_f1)
 
         # Log metrics
         log_metrics(log_file, [epoch, train_loss / len(train_loader), val_loss / len(val_loader),
@@ -228,7 +229,7 @@ def main():
         logging.info(f"Train Precision: {train_precision:.2f}, Val Precision: {val_precision:.2f}")
         logging.info(f"Train Recall: {train_recall:.2f}, Val Recall: {val_recall:.2f}")
         logging.info(f"Train F1: {train_f1:.2f}, Val F1: {val_f1:.2f}")
-        logging.info(f"Class-wise F1-Scores: {class_f1_scores}")
+        logging.info(f"Class-wise F1-Scores: {class_f1_report}")
         logging.info(f"Average F1-Score: {avg_f1_score:.4f}")
         
         # Save checkpoint based on the best F1-Score

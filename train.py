@@ -8,11 +8,9 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 import datetime
 import os
 import numpy as np
-from torch.utils.tensorboard.writer import SummaryWriter
 import logging  
 from tqdm import tqdm
 
-from src.utils import save_images_from_dataloader
 from src.models.factory import ModelFactory
 from src.dataset import create_dataloaders
 from src.early_stopping import EarlyStopping
@@ -133,7 +131,6 @@ def main():
 
     # Log the arguments
     log_args(log_file, args)
-    logging.info(f"Training started with model: {args.model_name}")
     
     # Create data loaders
     train_loader, val_loader, test_loader, train_dataset, val_dataset, test_dataset = create_dataloaders(
@@ -157,7 +154,7 @@ def main():
     early_stopping = EarlyStopping(patience=args.patience, verbose=True)
     
     # Training loop
-    best_val_loss = float('inf')
+    best_val_f1 = 0.0  
     for epoch in range(args.epochs):
         model.train()
         train_loss, train_correct, train_preds, train_targets = 0, 0, [], []
@@ -185,9 +182,9 @@ def main():
             train_progress.set_postfix({"Loss": loss.item()})
         
         train_acc = 100 * train_correct / len(train_dataset)
-        train_precision = precision_score(train_targets, train_preds, average='macro')
-        train_recall = recall_score(train_targets, train_preds, average='macro')
-        train_f1 = f1_score(train_targets, train_preds, average='macro')
+        train_precision = precision_score(train_targets, train_preds, average='weighted')
+        train_recall = recall_score(train_targets, train_preds, average='weighted')
+        train_f1 = f1_score(train_targets, train_preds, average='weighted')
         
         # Validation phase
         model.eval()
@@ -214,28 +211,34 @@ def main():
                 val_progress.set_postfix({"Loss": loss.item()})
         
         val_acc = 100 * val_correct / len(val_dataset)
-        val_precision = precision_score(val_targets, val_preds, average='macro')
-        val_recall = recall_score(val_targets, val_preds, average='macro')
-        val_f1 = f1_score(val_targets, val_preds, average='macro')
+        val_precision = precision_score(val_targets, val_preds, average='weighted')
+        val_recall = recall_score(val_targets, val_preds, average='weighted')
+        val_f1 = f1_score(val_targets, val_preds, average='weighted')
         
+        # Calculate class-wise F1 scores
+        class_f1_scores = f1_score(val_targets, val_preds, average=None)  
+        avg_f1_score = np.mean(class_f1_scores)
+
         # Log metrics
         log_metrics(log_file, [epoch, train_loss / len(train_loader), val_loss / len(val_loader),
-                              train_acc, val_acc, train_precision, val_precision, train_recall, val_recall, train_f1, val_f1])
-        
+                            train_acc, val_acc, train_precision, val_precision, train_recall, val_recall, train_f1, val_f1])
+
         # Log to console and file using logging
         logging.info(f"Epoch {epoch + 1}/{args.epochs} - Train Loss: {train_loss / len(train_loader):.4f}, Val Loss: {val_loss / len(val_loader):.4f}")
         logging.info(f"Train Accuracy: {train_acc:.2f}, Val Accuracy: {val_acc:.2f}")
         logging.info(f"Train Precision: {train_precision:.2f}, Val Precision: {val_precision:.2f}")
         logging.info(f"Train Recall: {train_recall:.2f}, Val Recall: {val_recall:.2f}")
         logging.info(f"Train F1: {train_f1:.2f}, Val F1: {val_f1:.2f}")
+        logging.info(f"Class-wise F1-Scores: {class_f1_scores}")
+        logging.info(f"Average F1-Score: {avg_f1_score:.4f}")
         
-        # Save checkpoint
-        save_checkpoint(model, optimizer, epoch, val_loss, os.path.join(artifacts_dir, 'checkpoints'), is_best=(val_loss < best_val_loss))
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
+        # Save checkpoint based on the best F1-Score
+        if avg_f1_score > best_val_f1:
+            best_val_f1 = avg_f1_score
+            save_checkpoint(model, optimizer, epoch, val_loss, os.path.join(artifacts_dir, 'checkpoints'), is_best=True)
         
-        # Early stopping
-        early_stopping(val_loss, model)
+        # Early stopping based on F1-Score
+        early_stopping(-avg_f1_score, model)  
         if early_stopping.early_stop:
             logging.info("Early stopping triggered.")
             break

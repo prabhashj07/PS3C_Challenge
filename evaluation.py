@@ -7,6 +7,7 @@ import argparse
 import os
 import logging
 from datetime import datetime
+import numpy as np
 from src.models.factory import ModelFactory
 from src.dataset import create_dataloaders, UnlabeledDataset
 
@@ -63,11 +64,14 @@ def evaluate_model(model, test_loader, criterion, device):
             test_loss += loss.item()
 
     test_acc = 100 * test_correct / len(test_loader.dataset)
-    test_precision = precision_score(test_targets, test_preds, average='macro')
-    test_recall = recall_score(test_targets, test_preds, average='macro')
-    test_f1 = f1_score(test_targets, test_preds, average='macro')
-
-    return test_loss / len(test_loader), test_acc, test_precision, test_recall, test_f1
+    test_precision = precision_score(test_targets, test_preds, average='weighted')
+    test_recall = recall_score(test_targets, test_preds, average='weighted')
+    test_f1 = f1_score(test_targets, test_preds, average='weighted')
+    
+    class_f1_scores = f1_score(test_targets, test_preds, average=None)
+    avg_f1_score = np.mean(class_f1_scores)
+    
+    return test_loss / len(test_loader), test_acc, test_precision, test_recall, test_f1, class_f1_scores, avg_f1_score
 
 # Define the transformations
 transform = {
@@ -105,23 +109,20 @@ def main():
     criterion = nn.CrossEntropyLoss()
 
     # Evaluate the model
-    test_loss, test_acc, test_precision, test_recall, test_f1 = evaluate_model(
+    test_loss, test_acc, test_precision, test_recall, test_f1, class_f1_scores, avg_f1_score = evaluate_model(
         model, test_loader, criterion, device
     )
 
     # Log evaluation results
     logging.info(f"Test Loss: {test_loss:.4f}")
-    logging.info(f"Test Accuracy: {test_acc:.2f}")
-    logging.info(f"Test Precision: {test_precision:.2f}")
-    logging.info(f"Test Recall: {test_recall:.2f}")
-    logging.info(f"Test F1 Score: {test_f1:.2f}")
+    logging.info(f"Test Accuracy: {test_acc:.2f}%")
+    logging.info(f"Test Precision: {test_precision:.4f}")
+    logging.info(f"Test Recall: {test_recall:.4f}")
+    logging.info(f"Test F1 Score: {test_f1:.4f}")
+    logging.info(f"Class-wise F1 Scores: {class_f1_scores}")
+    logging.info(f"Average F1-Score: {avg_f1_score:.4f}")
 
-    # Print evaluation results to console
-    print(f"Test Loss: {test_loss:.4f}")
-    print(f"Test Accuracy: {test_acc:.2f}")
-    print(f"Test Precision: {test_precision:.2f}")
-    print(f"Test Recall: {test_recall:.2f}")
-    print(f"Test F1 Score: {test_f1:.2f}")
+    print("Evaluation complete.")
 
 if __name__ == "__main__":
     main()

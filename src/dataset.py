@@ -54,8 +54,8 @@ class LabeledDataset(Dataset):
         if self.treat_bothcells_as_unhealthy:
             self.label_to_folder['bothcells'] = 'unhealthy'
 
-        # Create a mapping from class labels to class indices
-        self.class_to_idx = {label: idx for idx, label in enumerate(self.data['label'].unique())}
+        # Define class-to-index mapping
+        self.class_to_idx = {'healthy': 0, 'unhealthy': 1, 'rubbish': 2}
 
         # Filter out missing images initially
         self._remove_missing_images()

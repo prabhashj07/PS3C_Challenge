@@ -177,3 +177,6 @@ data/*
 # But keep the .csv files and .gitignore
 !data/*.csv
 !data/.gitignore
+
+# ignore .pth files 
+*.pth

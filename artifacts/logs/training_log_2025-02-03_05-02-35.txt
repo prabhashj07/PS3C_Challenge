@@ -1,0 +1,14 @@
+2025-02-03 05:02:35,230 - Training started with model: vit-b-16
+Training Arguments:
+train_csv: data/isbi2025-ps3c-train-dataset.csv
+data_dir: data
+model_name: vit-b-16
+batch_size: 32
+epochs: 100
+lr: 0.0002
+use_scheduler: False
+save_dir: ../artifacts
+seed: 42
+gamma: 2
+patience: 10
+

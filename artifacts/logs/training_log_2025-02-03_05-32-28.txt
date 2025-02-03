@@ -1,0 +1,32 @@
+2025-02-03 05:32:28,126 - Training started with model: vit-b-16
+Training Arguments:
+train_csv: data/isbi2025-ps3c-train-dataset.csv
+test_csv: data/isbi2025-ps3c-test-dataset.csv
+data_dir: data
+model_name: vit-b-16
+batch_size: 32
+epochs: 100
+lr: 0.0002
+use_scheduler: False
+save_dir: ../artifacts
+seed: 42
+gamma: 2
+patience: 10
+
+0, 0.008460014598103699, 0.0077837492806796865, 67.43740908046857, 70.22723096710969, 0.8054955528522398, 0.8144226364166904, 0.6743740908046857, 0.702272309671097, 0.726369876577598, 0.7471572067515612
+2025-02-03 05:47:21,527 - Epoch 1/100 - Train Loss: 0.0085, Val Loss: 0.0078
+2025-02-03 05:47:21,527 - Train Accuracy: 67.44, Val Accuracy: 70.23
+2025-02-03 05:47:21,527 - Train Precision: 0.81, Val Precision: 0.81
+2025-02-03 05:47:21,527 - Train Recall: 0.67, Val Recall: 0.70
+2025-02-03 05:47:21,528 - Train F1: 0.73, Val F1: 0.75
+2025-02-03 05:47:21,528 - Class-wise F1-Scores:               precision    recall  f1-score   support
+
+     Class 0       0.90      0.75      0.81     10106
+     Class 1       0.10      0.64      0.18       472
+     Class 2       0.72      0.63      0.67      5749
+
+    accuracy                           0.70     16327
+   macro avg       0.58      0.67      0.56     16327
+weighted avg       0.81      0.70      0.75     16327
+
+2025-02-03 05:47:21,528 - Average F1-Score: 0.7472

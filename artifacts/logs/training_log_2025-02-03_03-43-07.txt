@@ -1,0 +1,17 @@
+2025-02-03 03:43:07,856 - Training started with model: resnet50
+Training Arguments:
+train_csv: data/isbi2025-ps3c-train-dataset.csv
+test_csv: data/isbi2025-ps3c-test-dataset.csv
+data_dir: data
+model_name: resnet50
+batch_size: 32
+epochs: 100
+lr: 0.0002
+use_scheduler: False
+save_dir: ../artifacts
+seed: 42
+gamma: 2
+patience: 10
+num_classes: 3
+
+2025-02-03 03:43:07,856 - Training started with model: resnet50

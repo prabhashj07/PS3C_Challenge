@@ -177,7 +177,3 @@ data/*
 # But keep the .csv files and .gitignore
 !data/*.csv
 !data/.gitignore
-
-# Ignore all files inside the artifacts folder, but not the folder itself
-/artifacts/*
-/!artifacts/

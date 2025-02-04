@@ -149,10 +149,10 @@ def main():
     alpha_values = 1.0 / label_counts
     alpha_normalized = alpha_values / alpha_values.sum()
     alpha_normalized = alpha_normalized.to(device)
-    criterion = FocalLoss(gamma=args.gamma, alpha=alpha_normalized, reduction='mean')
+    criterion = FocalLoss(gamma=4, alpha=alpha_normalized, reduction='mean')
     
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.1) if args.use_scheduler else None
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1) if args.use_scheduler else None
     early_stopping = EarlyStopping(patience=args.patience, verbose=True)
     
     # Training loop

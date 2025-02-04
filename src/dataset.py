@@ -110,13 +110,17 @@ class UnlabeledDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx):
-        img_name = os.path.join(self.root_dir, self.data.iloc[idx, 0])
-        image = Image.open(img_name).convert('RGB')
+        # Get the image name from the CSV file
+        img_name = self.data.iloc[idx, 0]  
+        img_path = os.path.join(self.root_dir, img_name)
         
+        image = Image.open(img_path).convert('RGB')
+
         if self.transform:
             image = self.transform(image)
+            # print(f"Image {img_name} shape: {image.shape}")
         
-        return image
+        return image, img_name
 
 # Function to count class distribution
 def count_classes(dataset):
@@ -130,67 +134,75 @@ def count_classes(dataset):
     
     return Counter(labels)
 
-# Function to visualize and save test images 
 def visualize_and_save_images(train_loader, val_loader, test_loader, train_dataset, val_dataset, test_dataset, num_images=4, save_dir='../artifacts/saved_images'):
     # Create the directory to save the images
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
+
+    # Function to denormalize an image
+    def denormalize(image, mean, std):
+        if image.ndim == 3:  # (C, H, W)
+            image = image.transpose((1, 2, 0))  
+        image = std * image + mean  
+        image = np.clip(image, 0, 1)  
+        return image
 
     # Visualize and save training images
     print("\nVisualizing and Saving Training Images:")
     images, labels = next(iter(train_loader))
     idx_to_class_train = {v: k for k, v in train_dataset.dataset.class_to_idx.items()}
 
-    for i in range(num_images):
+    for i in range(min(num_images, len(images))): 
         plt.figure(figsize=(5, 5))
-        image = images[i].numpy().transpose((1, 2, 0))  
+        image = images[i].numpy() 
         mean = np.array([0.485, 0.456, 0.406])
         std = np.array([0.229, 0.224, 0.225])
-        image = std * image + mean 
-        image = np.clip(image, 0, 1)   
+        image = denormalize(image, mean, std)
         plt.imshow(image)
         plt.title(f"Label: {idx_to_class_train[labels[i].item()]}")
         plt.axis('off')
         save_path = os.path.join(save_dir, f'train_image_{i+1}.png')
-        plt.savefig(save_path)  
-        plt.close()  
+        plt.savefig(save_path)
+        plt.close()
 
     # Visualize and save validation images
     print("\nVisualizing and Saving Validation Images:")
     images, labels = next(iter(val_loader))
     idx_to_class_val = {v: k for k, v in val_dataset.dataset.class_to_idx.items()}
 
-    for i in range(num_images):
+    for i in range(min(num_images, len(images))): 
         plt.figure(figsize=(5, 5))
-        image = images[i].numpy().transpose((1, 2, 0))  
+        image = images[i].numpy()  
         mean = np.array([0.485, 0.456, 0.406])
         std = np.array([0.229, 0.224, 0.225])
-        image = std * image + mean 
-        image = np.clip(image, 0, 1)   
+        image = denormalize(image, mean, std)
         plt.imshow(image)
         plt.title(f"Label: {idx_to_class_val[labels[i].item()]}")
         plt.axis('off')
         save_path = os.path.join(save_dir, f'val_image_{i+1}.png')
-        plt.savefig(save_path)  
-        plt.close()  # Close the plot to free memory
+        plt.savefig(save_path)
+        plt.close()
 
     # Visualize and save test images
     print("\nVisualizing and Saving Test Images:")
-    images = next(iter(test_loader))
+    test_data = next(iter(test_loader))
+    if isinstance(test_data, (list, tuple)):  
+        images = test_data[0]
+    else:
+        images = test_data
 
-    for i in range(num_images):
+    for i in range(min(num_images, len(images))):  
         plt.figure(figsize=(5, 5))
-        image = images[i].numpy().transpose((1, 2, 0))  
+        image = images[i].numpy() 
         mean = np.array([0.485, 0.456, 0.406])
         std = np.array([0.229, 0.224, 0.225])
-        image = std * image + mean 
-        image = np.clip(image, 0, 1)   
+        image = denormalize(image, mean, std)
         plt.imshow(image)
         plt.title(f"Test Image {i+1}")
         plt.axis('off')
         save_path = os.path.join(save_dir, f'test_image_{i+1}.png')
-        plt.savefig(save_path)  
-        plt.close() 
+        plt.savefig(save_path)
+        plt.close()
 
     print(f"Images have been saved to: {save_dir}")
 

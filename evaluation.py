@@ -11,7 +11,6 @@ import numpy as np
 import pandas as pd
 from src.models.factory import ModelFactory
 from src.dataset import UnlabeledDataset
-from train import FocalLoss
 
 def get_timestamp():
     return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -129,8 +128,7 @@ def main():
     test_dataset = UnlabeledDataset(args.test_csv, args.data_dir, transform=transform)
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 
-    # Criterion
-    criterion = FocalLoss(gamma=4 , alpha=3, reduction='mean')
+    criterion = nn.CrossEntropyLoss()
 
     model = ModelFactory(args.model_name, num_classes=3).get_model().to(device)
     try:

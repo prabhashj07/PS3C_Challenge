@@ -15,34 +15,34 @@ from src.models.factory import ModelFactory
 from src.dataset import create_dataloaders
 from src.early_stopping import EarlyStopping
 
-class FocalLoss(nn.Module):
-    def __init__(self, gamma=4, alpha=None, num_classes=3, reduction='mean'):
-        super(FocalLoss, self).__init__()
-        self.gamma = gamma
-        self.alpha = alpha
-        self.num_classes = num_classes
-        self.reduction = reduction
+# class FocalLoss(nn.Module):
+#     def __init__(self, gamma=4, alpha=None, num_classes=3, reduction='mean'):
+#         super(FocalLoss, self).__init__()
+#         self.gamma = gamma
+#         self.alpha = alpha
+#         self.num_classes = num_classes
+#         self.reduction = reduction
 
-    def forward(self, inputs, targets):
-        # Apply softmax to the inputs
-        inputs = F.softmax(inputs, dim=1)
+#     def forward(self, inputs, targets):
+#         # Apply softmax to the inputs
+#         inputs = F.softmax(inputs, dim=1)
         
-        # Get the probability of the correct class for each target
-        targets = F.one_hot(targets, self.num_classes).float()
+#         # Get the probability of the correct class for each target
+#         targets = F.one_hot(targets, self.num_classes).float()
         
-        # Calculate cross entropy
-        cross_entropy = -targets * torch.log(inputs + 1e-8)
+#         # Calculate cross entropy
+#         cross_entropy = -targets * torch.log(inputs + 1e-8)
         
-        # Calculate focal loss
-        loss = self.alpha * (1 - inputs) ** self.gamma * cross_entropy
+#         # Calculate focal loss
+#         loss = self.alpha * (1 - inputs) ** self.gamma * cross_entropy
         
-        # Reduce loss according to the specified reduction method
-        if self.reduction == 'mean':
-            return loss.mean()
-        elif self.reduction == 'sum':
-            return loss.sum()
-        else:
-            return loss
+#         # Reduce loss according to the specified reduction method
+#         if self.reduction == 'mean':
+#             return loss.mean()
+#         elif self.reduction == 'sum':
+#             return loss.sum()
+#         else:
+#             return loss
 
 # Get the current timestamp in a readable format
 def get_timestamp():
@@ -145,12 +145,14 @@ def main():
     label_counts = torch.tensor([40265, 1894, 23146], dtype=torch.float32)
     # alpha_values = label_counts.sum() / (3 * label_counts)
 
-    # using using inverse class frequencies
-    alpha_values = 1.0 / label_counts
-    alpha_normalized = alpha_values / alpha_values.sum()
-    alpha_normalized = alpha_normalized.to(device)
-    criterion = FocalLoss(gamma=4, alpha=alpha_normalized, reduction='mean')
-    
+    # # using using inverse class frequencies
+    # alpha_values = 1.0 / label_counts
+    # alpha_normalized = alpha_values / alpha_values.sum()
+    # alpha_normalized = alpha_normalized.to(device)
+    # criterion = FocalLoss(gamma=4, alpha=alpha_normalized, reduction='mean')
+
+
+    criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1) if args.use_scheduler else None
     early_stopping = EarlyStopping(patience=args.patience, verbose=True)

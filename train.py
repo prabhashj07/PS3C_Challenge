@@ -12,7 +12,7 @@ import logging
 from tqdm import tqdm
 
 from src.models.factory import ModelFactory
-from src.dataset import create_dataloaders
+from src.dataset import create_dataloaders, calculate_class_weights
 from src.early_stopping import EarlyStopping
 
 # class FocalLoss(nn.Module):
@@ -142,7 +142,7 @@ def main():
     model = ModelFactory(args.model_name, num_classes=3).get_model().to(device)
     
     # Initialize Focal Loss
-    label_counts = torch.tensor([40265, 1894, 23146], dtype=torch.float32)
+    # label_counts = torch.tensor([40265, 1894, 23146], dtype=torch.float32)
     # alpha_values = label_counts.sum() / (3 * label_counts)
 
     # # using using inverse class frequencies
@@ -152,8 +152,8 @@ def main():
     # criterion = FocalLoss(gamma=4, alpha=alpha_normalized, reduction='mean')
 
 
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=args.lr)
+    criterion = nn.CrossEntropyLoss(weight=calculate_class_weights(train_dataset).to(device))
+    optimizer = optim.AdamW(model.parameters(), lr=args.lr)
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1) if args.use_scheduler else None
     early_stopping = EarlyStopping(patience=args.patience, verbose=True)
     
@@ -224,9 +224,11 @@ def main():
         val_precision = precision_score(val_targets, val_preds, average='weighted')
         val_recall = recall_score(val_targets, val_preds, average='weighted')
         val_f1 = f1_score(val_targets, val_preds, average='weighted')
+
+        class_names = ['rubbish', 'healthy','unhealthy']
         
         # Generate class-wise F1 score report
-        class_f1_report = classification_report(val_targets, val_preds, target_names=[f'Class {i}' for i in range(3)])
+        class_f1_report = classification_report(val_targets, val_preds, target_names=class_names)
 
         # Compute average F1 score from the classification report
         avg_f1_score = (val_f1)

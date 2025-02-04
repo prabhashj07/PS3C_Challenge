@@ -1,4 +1,5 @@
 import os
+import torch
 from torch.utils.data import DataLoader, Dataset, random_split
 from torchvision import transforms
 import torchvision.transforms.functional as F
@@ -34,6 +35,28 @@ transform = {
     ])
 }
 
+def calculate_class_weights(dataset):
+    if isinstance(dataset, LabeledDataset):
+        labels = dataset.data['label'].tolist()
+    else:
+        labels = [dataset.dataset.data.iloc[idx, 1] for idx in dataset.indices]
+
+    class_counts = Counter(labels)
+    total_samples = sum(class_counts.values())
+    class_weights = {cls: total_samples / count for cls, count in class_counts.items()}
+    
+    weight_sum = sum(class_weights.values())
+    class_weights = {cls: weight / weight_sum for cls, weight in class_weights.items()}
+    
+    if isinstance(dataset, LabeledDataset):
+        idx_to_class = {v: k for k, v in dataset.class_to_idx.items()}
+    else:
+        idx_to_class = {v: k for k, v in dataset.dataset.class_to_idx.items()}
+    
+    weights = [class_weights[idx_to_class[idx]] for idx in sorted(idx_to_class.keys())]
+    
+    return torch.tensor(weights, dtype=torch.float32)
+
 class LabeledDataset(Dataset):
     def __init__(self, csv_file, root_dir, transform=None, treat_bothcells_as_unhealthy=False):
         # Read CSV file containing image names and labels
@@ -44,9 +67,9 @@ class LabeledDataset(Dataset):
 
         # Map labels to folder names
         self.label_to_folder = {
-            'healthy': 'healthy',
-            'unhealthy': 'unhealthy',
             'rubbish': 'rubbish',
+            'unhealthy': 'unhealthy',
+            'healthy': 'healthy',
             'bothcells': 'bothcells'
         }
 
@@ -55,7 +78,7 @@ class LabeledDataset(Dataset):
             self.label_to_folder['bothcells'] = 'unhealthy'
 
         # Define class-to-index mapping
-        self.class_to_idx = {'healthy': 0, 'unhealthy': 1, 'rubbish': 2}
+        self.class_to_idx = {'rubbish': 0, 'unhealthy': 1, 'healthy': 2}
 
         # Filter out missing images initially
         self._remove_missing_images()
@@ -125,7 +148,7 @@ class UnlabeledDataset(Dataset):
 # Function to count class distribution
 def count_classes(dataset):
     if isinstance(dataset, LabeledDataset):
-        labels = dataset.data['label'].tolist()
+        labels = ['rubbish', 'unhealthy', 'healthy']
     elif isinstance(dataset, UnlabeledDataset):
         return {}  # No labels for unlabeled data
     else:
@@ -262,6 +285,11 @@ if __name__ == "__main__":
     print(f"Train set: {train_class_counts}")
     print(f"Validation set: {val_class_counts}")
     print(f"Test set: {test_class_counts}")
+
+
+    # Calculate class weights
+    class_weights = calculate_class_weights(train_dataset)
+    print(f"\nClass Weights: {class_weights}")
 
     # Visualization after splitting
     visualize_and_save_images(train_loader, val_loader, test_loader, train_dataset, val_dataset, test_dataset)

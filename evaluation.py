@@ -96,7 +96,9 @@ def evaluate_model(model, test_loader, criterion, device):
         test_precision = precision_score(test_targets, test_preds, average='weighted')
         test_recall = recall_score(test_targets, test_preds, average='weighted')
         test_f1 = f1_score(test_targets, test_preds, average='weighted')
-        class_f1_report = classification_report(test_targets, test_preds, target_names=[f'Class {i}' for i in range(3)])
+
+        class_names = ['rubbish', 'healthy','unhealthy']
+        class_f1_report = classification_report(test_targets, test_preds, target_names=class_names)
         avg_f1_score = test_f1
         return test_loss / len(test_loader), test_acc, test_precision, test_recall, test_f1, class_f1_report, avg_f1_score
     else:

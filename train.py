@@ -256,7 +256,7 @@ def main():
         # Save checkpoint based on the best F1-Score
         if avg_f1_score > best_val_f1:
             best_val_f1 = avg_f1_score
-            save_checkpoint(model, optimizer, epoch, val_loss, os.path.join(artifacts_dir, 'checkpoints'), is_best=True)
+            save_checkpoint(model, optimizer, epoch, val_loss, os.path.join(artifacts_dir), is_best=True)
         
         # Early stopping based on F1-Score
         early_stopping(-avg_f1_score, model)  

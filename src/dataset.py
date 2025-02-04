@@ -13,9 +13,19 @@ import random
 # Get the number of CPU cores available
 num_workers = os.cpu_count()
 
+
+class Padding:
+    def __init__(self, padding=20, fill=(255, 255, 255)):
+        self.padding = [padding] * 4
+        self.fill = fill
+
+    def __call__(self, img):
+        return F.pad(img, self.padding, fill=self.fill)
+
 # Transformation pipeline
 transform = {
     'train': transforms.Compose([
+        Padding(padding=20, fill=(255, 255, 255)),
         transforms.RandomResizedCrop(224),
         transforms.RandomHorizontalFlip(p=0.5),
         transforms.RandomRotation(degrees=15),
@@ -24,11 +34,12 @@ transform = {
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ]),
     'val': transforms.Compose([
-        transforms.Resize((224, 224)),
+        Padding(padding=20, fill=(255, 255, 255)),
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ]),
     'test': transforms.Compose([
+        Padding(padding=20, fill=(255, 255, 255)),
         transforms.Resize((224, 224)),
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])

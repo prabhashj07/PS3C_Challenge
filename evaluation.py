@@ -104,13 +104,6 @@ def evaluate_model(model, test_loader, criterion, device):
     else:
         return None, None, None, None, None, None, None
 
-# Define the transformations
-transform = transforms.Compose([
-    transforms.Resize((224, 224)),  
-    transforms.ToTensor(),         
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  
-    ])
-
 def main():
     # Parse command-line arguments
     args = parse_args()
@@ -127,7 +120,7 @@ def main():
     logging.info(f"Using device: {device}")
 
     # Load the test dataset (images only)
-    test_dataset = UnlabeledDataset(args.test_csv, args.data_dir, transform=transform)
+    test_dataset = UnlabeledDataset(args.test_csv, args.data_dir, transform=None)
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 
     criterion = nn.CrossEntropyLoss()

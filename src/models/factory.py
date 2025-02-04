@@ -39,25 +39,13 @@ model_mapping = {
         models.vit_b_32,
         {"weights": models.ViT_B_32_Weights.DEFAULT, "family": "vit"},
     ),
-    "alexnet": (
-        models.alexnet,
-        {"weights": models.AlexNet_Weights.DEFAULT, "family": "alexnet"},
+    "convnext-b": (
+        models.convnext_base,
+        {"weights": models.ConvNeXt_Base_Weights.DEFAULT, "family": "convnext"},
     ),
-    "vgg16": (
-        models.vgg16,
-        {"weights": models.VGG16_Weights.DEFAULT, "family": "vgg"},
-    ),
-    "vgg19": (
-        models.vgg19,
-        {"weights": models.VGG19_Weights.DEFAULT, "family": "vgg"},
-    ),
-    "squeezenet1_0": (
-        models.squeezenet1_0,
-        {"weights": models.SqueezeNet1_0_Weights.DEFAULT, "family": "squeezenet"},
-    ),
-    "squeezenet1_1": (
-        models.squeezenet1_1,
-        {"weights": models.SqueezeNet1_1_Weights.DEFAULT, "family": "squeezenet"},
+    "swin-t": (
+        models.swin_t,
+        {"weights": models.Swin_T_Weights.DEFAULT, "family": "swin"},
     ),
     # Add more models as needed with their respective configurations.
 }
@@ -93,12 +81,11 @@ class Model(nn.Module):
             self.model.fc = self._create_classifier(in_features, num_classes)
         elif model_config["family"] == "vit":
             self.model.heads = self._create_classifier(in_features, num_classes)
-        elif model_config["family"] == "alexnet":
-            self.model.classifier[6] = self._create_classifier(in_features, num_classes)
-        elif model_config["family"] == "vgg":
-            self.model.classifier[6] = self._create_classifier(in_features, num_classes)
-        elif model_config["family"] == "squeezenet":
-            self.model.classifier[1] = self._create_classifier(in_features, num_classes)
+        elif model_config["family"] == "convnext":
+            self.model.classifier[2] = self._create_classifier(in_features, num_classes)
+        elif model_config["family"] == "swin":
+            self.model.head = self._create_classifier(in_features, num_classes)
+
 
     def forward(self, x):
         """Forward pass through the model."""
@@ -112,12 +99,10 @@ class Model(nn.Module):
             return self.model.fc.in_features
         elif family == "vit":
             return self.model.heads.head.in_features
-        elif family == "alexnet":
-            return self.model.classifier[1].in_features  
-        elif family == "vgg":
-            return self.model.classifier[0].in_features  
-        elif family == "squeezenet":
-            return self.model.classifier[1].in_features  
+        elif family == "convnext":
+            return self.model.classifier[2].in_features
+        elif family == "swin":
+            return self.model.head.in_features
         else:
             raise ValueError(f"Unknown model family: {family}")
 
@@ -168,7 +153,7 @@ class ModelFactory:
 
 
 if __name__ == "__main__":
-    model_factory = ModelFactory("resnet50", 3)
+    model_factory = ModelFactory("swin-t", 3)
     model = model_factory.get_model()
 
     print(model)

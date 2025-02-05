@@ -69,12 +69,13 @@ def calculate_class_weights(dataset):
     return torch.tensor(weights, dtype=torch.float32)
 
 class LabeledDataset(Dataset):
-    def __init__(self, csv_file, root_dir, transform=None, treat_bothcells_as_unhealthy=False):
+    def __init__(self, csv_file, root_dir, transform=None, treat_bothcells_as_unhealthy=False, balance_classes=False):
         # Read CSV file containing image names and labels
         self.data = pd.read_csv(csv_file)
         self.root_dir = root_dir
         self.transform = transform
         self.treat_bothcells_as_unhealthy = treat_bothcells_as_unhealthy
+        self.balance_classes = balance_classes
 
         # Map labels to folder names
         self.label_to_folder = {
@@ -93,6 +94,10 @@ class LabeledDataset(Dataset):
 
         # Filter out missing images initially
         self._remove_missing_images()
+
+        # Balance classes 
+        if self.balance_classes:
+            self._balance_classes()
         
     def _remove_missing_images(self):
         """Removes entries from self.data where images are missing."""
@@ -108,6 +113,18 @@ class LabeledDataset(Dataset):
 
         # Update dataset to only contain valid data
         self.data = pd.DataFrame(valid_data).reset_index(drop=True)
+
+    def _balance_classes(self):
+        """Balances the dataset by reducing the number of 'rubbish' samples to match 'healthy' samples."""
+        healthy_count = self.data[self.data['label'] == 'healthy'].shape[0]
+        rubbish_count = self.data[self.data['label'] == 'rubbish'].shape[0]
+
+        if rubbish_count > healthy_count:
+            # Reduce the number of 'rubbish' samples to match 'healthy' samples
+            rubbish_samples = self.data[self.data['label'] == 'rubbish']
+            rubbish_samples = rubbish_samples.sample(n=healthy_count, random_state=42)  # Randomly sample to match healthy count
+            other_samples = self.data[self.data['label'] != 'rubbish']
+            self.data = pd.concat([other_samples, rubbish_samples]).reset_index(drop=True)
 
     def __len__(self):
         return len(self.data)
@@ -130,8 +147,10 @@ class LabeledDataset(Dataset):
         image = Image.open(img_path).convert('RGB')
         if self.transform:
             image = self.transform(image)
+        
+        label = self.class_to_idx[label]
 
-        return image, self.class_to_idx[label]
+        return image, label
 
 # Class for unlabeled test data
 class UnlabeledDataset(Dataset):
@@ -241,9 +260,9 @@ def visualize_and_save_images(train_loader, val_loader, test_loader, train_datas
     print(f"Images have been saved to: {save_dir}")
 
 # Function to create dataset and dataloaders
-def create_dataloaders(train_csv, test_csv, image_dir, batch_size=16, num_workers=4):
+def create_dataloaders(train_csv, test_csv, image_dir, batch_size=16, num_workers=4, balance_classes=False):
     # Load full dataset
-    full_dataset = train_dataset = LabeledDataset(train_csv, image_dir, transform['train'], treat_bothcells_as_unhealthy=True)
+    full_dataset = train_dataset = LabeledDataset(train_csv, image_dir, transform['train'], treat_bothcells_as_unhealthy=True, balance_classes=balance_classes)
 
     # Split into train and validation
     train_size = int(0.8 * len(full_dataset))
@@ -277,8 +296,8 @@ if __name__ == "__main__":
     if not os.path.exists(test_csv):
         print(f"Error: Test CSV file not found at {test_csv}")
 
-    # Proceed to create dataloaders 
-    train_loader, val_loader, test_loader, train_dataset, val_dataset, test_dataset = create_dataloaders(train_csv, test_csv, root_dir)
+    # Proceed to create dataloaders with balancing
+    train_loader, val_loader, test_loader, train_dataset, val_dataset, test_dataset = create_dataloaders(train_csv, test_csv, root_dir, balance_classes=True)
 
     # Verification
     print("\nDataset Splits:")
@@ -296,7 +315,6 @@ if __name__ == "__main__":
     print(f"Train set: {train_class_counts}")
     print(f"Validation set: {val_class_counts}")
     print(f"Test set: {test_class_counts}")
-
 
     # Calculate class weights
     class_weights = calculate_class_weights(train_dataset)

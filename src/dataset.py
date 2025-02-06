@@ -69,13 +69,14 @@ def calculate_class_weights(dataset):
     return torch.tensor(weights, dtype=torch.float32)
 
 class LabeledDataset(Dataset):
-    def __init__(self, csv_file, root_dir, transform=None, treat_bothcells_as_unhealthy=False, balance_classes=False):
+    def __init__(self, csv_file, root_dir, transform=None, treat_bothcells_as_unhealthy=False, balance_classes=False, oversample_minority=False):
         # Read CSV file containing image names and labels
         self.data = pd.read_csv(csv_file)
         self.root_dir = root_dir
         self.transform = transform
         self.treat_bothcells_as_unhealthy = treat_bothcells_as_unhealthy
         self.balance_classes = balance_classes
+        self.oversample_minority = oversample_minority
 
         # Map labels to folder names
         self.label_to_folder = {
@@ -98,6 +99,10 @@ class LabeledDataset(Dataset):
         # Balance classes 
         if self.balance_classes:
             self._balance_classes()
+        
+        # Oversample minority class
+        if self.oversample_minority:
+            self._oversample_minority()
         
     def _remove_missing_images(self):
         """Removes entries from self.data where images are missing."""
@@ -122,9 +127,40 @@ class LabeledDataset(Dataset):
         if rubbish_count > healthy_count:
             # Reduce the number of 'rubbish' samples to match 'healthy' samples
             rubbish_samples = self.data[self.data['label'] == 'rubbish']
-            rubbish_samples = rubbish_samples.sample(n=healthy_count, random_state=42)  # Randomly sample to match healthy count
+            rubbish_samples = rubbish_samples.sample(n=healthy_count, random_state=42) 
             other_samples = self.data[self.data['label'] != 'rubbish']
             self.data = pd.concat([other_samples, rubbish_samples]).reset_index(drop=True)
+
+    def _oversample_minority(self):
+        """Oversamples the minority class by applying additional transformations."""
+        # Determine the minority class
+        label = self.data['label']
+        class_counts = Counter(label)
+
+        # Get the minority and majority classes
+        minority_class, minority_count = min(class_counts.items(), key=lambda x: x[1])
+        majority_class, majority_count = max(class_counts.items(), key=lambda x: x[1])
+
+        # Calculate the number of additional samples needed
+        additional_samples_needed = majority_count - minority_count
+
+        # Get the minority class samples as a DataFrame
+        minority_samples = self.data[self.data['label'] == minority_class]
+
+        # Debugging: Check the type of minority_samples
+        if not isinstance(minority_samples, pd.DataFrame):
+            print(f"[WARNING] minority_samples is not a DataFrame. Type: {type(minority_samples)}")
+            minority_samples = pd.DataFrame(minority_samples)  
+
+        # Apply additional transformations to create new samples
+        augmented_samples = []
+        for _ in range(additional_samples_needed):
+            sample = minority_samples.sample(n=1, random_state=random.randint(0, 1000))
+            augmented_samples.append(sample)
+
+        # Concatenate the original data with the augmented samples
+        self.data = pd.concat([self.data] + augmented_samples).reset_index(drop=True)
+        print(f"Data after oversampling minority class: {self.data.shape}")  
 
     def __len__(self):
         return len(self.data)
@@ -260,9 +296,9 @@ def visualize_and_save_images(train_loader, val_loader, test_loader, train_datas
     print(f"Images have been saved to: {save_dir}")
 
 # Function to create dataset and dataloaders
-def create_dataloaders(train_csv, test_csv, image_dir, batch_size=16, num_workers=4, balance_classes=False):
+def create_dataloaders(train_csv, test_csv, image_dir, batch_size=16, num_workers=4, balance_classes=False, oversample_minority=False):
     # Load full dataset
-    full_dataset = train_dataset = LabeledDataset(train_csv, image_dir, transform['train'], treat_bothcells_as_unhealthy=True, balance_classes=balance_classes)
+    full_dataset = train_dataset = LabeledDataset(train_csv, image_dir, transform['train'], treat_bothcells_as_unhealthy=True, balance_classes=balance_classes, oversample_minority=True)
 
     # Split into train and validation
     train_size = int(0.8 * len(full_dataset))

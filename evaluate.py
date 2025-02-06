@@ -10,7 +10,7 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 from src.models.factory import ModelFactory
-from src.dataset import UnlabeledDataset
+from src.dataset import UnlabeledDataset, Padding, transform 
 
 def get_timestamp():
     return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -120,7 +120,7 @@ def main():
     logging.info(f"Using device: {device}")
 
     # Load the test dataset (images only)
-    test_dataset = UnlabeledDataset(args.test_csv, args.data_dir, transform=None)
+    test_dataset = UnlabeledDataset(args.test_csv, args.data_dir, transform=transform['test'])
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 
     criterion = nn.CrossEntropyLoss()

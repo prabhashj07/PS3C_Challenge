@@ -1,6 +1,14 @@
 from torchvision import models
 from torch import nn
 
+## for mambavision model  install the model --> pip  install mambavision
+try:
+    from mambavision import mambav2_small, mambav2_base, mambav2_large
+except ImportError:
+    print("Warning: mambavision not installed. Install with: pip install mambavision")
+    mambav2_small = mambav2_base = mambav2_large = None
+    
+
 # Model mappings
 model_mapping = {
     "densenet121": (
@@ -47,6 +55,18 @@ model_mapping = {
         models.swin_t,
         {"weights": models.Swin_T_Weights.DEFAULT, "family": "swin"},
     ),
+    "mambav2-small": (
+        mambav2_small,
+        {"weights": None, "family": "mambav2"},  # MambaVision typically doesn't have pretrained weights in torchvision
+    ),
+    "mambav2-base": (
+        mambav2_base,
+        {"weights": None, "family": "mambav2"},
+    ),
+    "mambav2-large": (
+        mambav2_large,
+        {"weights": None, "family": "mambav2"},
+    ),
     # Add more models as needed with their respective configurations.
 }
 
@@ -85,6 +105,15 @@ class Model(nn.Module):
             self.model.classifier[2] = self._create_classifier(in_features, num_classes)
         elif model_config["family"] == "swin":
             self.model.head = self._create_classifier(in_features, num_classes)
+        elif model_config["family"] == "mambav2":
+            # MambaVision models typically have a 'head' or 'classifier' attribute
+            if hasattr(self.model, 'head'):
+                self.model.head = self._create_classifier(in_features, num_classes)
+            elif hasattr(self.model, 'classifier'):
+                self.model.classifier = self._create_classifier(in_features, num_classes)
+            else:
+                # Fallback: replace the last linear layer
+                self.model.classifier = self._create_classifier(in_features, num_classes)
 
 
     def forward(self, x):
@@ -103,6 +132,15 @@ class Model(nn.Module):
             return self.model.classifier[2].in_features
         elif family == "swin":
             return self.model.head.in_features
+        elif family == "mambav2":
+            # Try different possible classifier locations for MambaVision
+            if hasattr(self.model, 'head') and hasattr(self.model.head, 'in_features'):
+                return self.model.head.in_features
+            elif hasattr(self.model, 'classifier') and hasattr(self.model.classifier, 'in_features'):
+                return self.model.classifier.in_features
+            else:
+                # Fallback: assume standard classification head
+                raise ValueError(f"Could not determine in_features for {family} model")
         else:
             raise ValueError(f"Unknown model family: {family}")
 
@@ -131,6 +169,14 @@ class ModelFactory:
         """
         self.model_name = model_name
         self.num_classes = num_classes
+
+        
+        # Check if mambavision models are available
+        if model_name.startswith("mambav2") and mambav2_small is None:
+            raise ImportError(
+                "MambaVision models require 'mambavision' package. "
+                "Install with: pip install mambavision"
+            )
 
     def __call__(self):
         """
